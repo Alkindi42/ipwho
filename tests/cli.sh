@@ -10,6 +10,8 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 export HOME="$tmp_dir/home"
 export XDG_CONFIG_HOME="$tmp_dir/config"
+export XDG_CACHE_HOME="$tmp_dir/cache"
+cache_file="$XDG_CACHE_HOME/ipwho/cache.json"
 export IPWHO_TEST_CALLS="$tmp_dir/calls"
 export IPWHO_TEST_SOURCED="$tmp_dir/sourced"
 mkdir -p "$HOME" "$XDG_CONFIG_HOME/gcp"
@@ -98,16 +100,20 @@ unset GCP_PROJECTS CLOUDSDK_CORE_PROJECT
 printf 'PASS: projects are never selected implicitly from the environment\n'
 
 run_cli 0 sync --gcp-project first-project --gcp-project second-project --gcp-project first-project
-jq empty "$tmp_dir/stdout"
+jq empty "$cache_file"
 jq -e '
+  .version == 1 and
+  .scope.gcp.projects == ["first-project", "second-project"] and
   [.resources["203.0.113.10"][].project] == ["first-project", "second-project"]
-' "$tmp_dir/stdout" >/dev/null
-[[ $(wc -l <"$IPWHO_TEST_CALLS") -eq 6 && ! -s "$tmp_dir/stderr" ]]
+' "$cache_file" >/dev/null
+[[ $(wc -l <"$IPWHO_TEST_CALLS") -eq 6 && ! -s "$tmp_dir/stdout" && -s "$tmp_dir/stderr" ]]
 printf 'PASS: explicit projects are collected once, in first-occurrence order\n'
 
+cp "$cache_file" "$tmp_dir/previous-cache"
 export IPWHO_TEST_FAIL_COMPUTE=1
 run_cli 1 sync --gcp-project first-project --gcp-project second-project
-[[ -s "$tmp_dir/stderr" && $(wc -l <"$IPWHO_TEST_CALLS") -eq 3 ]]
+[[ ! -s "$tmp_dir/stdout" && -s "$tmp_dir/stderr" && $(wc -l <"$IPWHO_TEST_CALLS") -eq 3 ]]
+cmp -s "$cache_file" "$tmp_dir/previous-cache"
 unset IPWHO_TEST_FAIL_COMPUTE
 printf 'PASS: collection failures remain nonzero and stop before the next project\n'
 
@@ -119,8 +125,8 @@ printf 'PASS: ipwho never sources the personal project file, including for looku
 run 0 env PATH="$ROOT_DIR:$PATH" "$BASH" "$ROOT_DIR/examples/ipwho-sync.sh"
 jq -e '
   [.resources["203.0.113.10"][].project] == ["shared-a", "shared-b"]
-' "$tmp_dir/stdout" >/dev/null
-[[ -s "$IPWHO_TEST_SOURCED" && ! -s "$tmp_dir/stderr" ]]
+' "$cache_file" >/dev/null
+[[ -s "$IPWHO_TEST_SOURCED" && ! -s "$tmp_dir/stdout" && -s "$tmp_dir/stderr" ]]
 printf 'PASS: the adapter uses the existing shared project list\n'
 
 mkdir -p "$HOME/.config/gcp"
@@ -128,7 +134,7 @@ printf 'GCP_PROJECTS=(fallback-project)\n' >"$HOME/.config/gcp/projects.bash"
 run 0 env -u XDG_CONFIG_HOME PATH="$ROOT_DIR:$PATH" "$BASH" "$ROOT_DIR/examples/ipwho-sync.sh"
 jq -e '
   [.resources["203.0.113.10"][].project] == ["fallback-project"]
-' "$tmp_dir/stdout" >/dev/null
+' "$cache_file" >/dev/null
 printf 'PASS: the adapter falls back to HOME/.config when XDG_CONFIG_HOME is unset\n'
 
 printf 'GCP_PROJECTS=()\n' >"$XDG_CONFIG_HOME/gcp/projects.bash"

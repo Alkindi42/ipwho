@@ -21,7 +21,10 @@ fetch_forwarding_rules() {
 
   if [[ -n "$rules" ]]; then
     while IFS= read -r rule; do
-      target="$(jq -r '.target // empty' <<<"$rule")"
+      target="$(jq -r '.target // empty' <<<"$rule")" || {
+        ret=1
+        continue
+      }
       hosts='[]'
       proxy_type=''
 
@@ -31,7 +34,10 @@ fetch_forwarding_rules() {
       esac
 
       if [[ -n "$proxy_type" ]]; then
-        hosts="$(jq -c --arg key "$target" '.[$key] // empty' <<<"$hosts_cache")"
+        hosts="$(jq -c --arg key "$target" '.[$key] // empty' <<<"$hosts_cache")" || {
+          ret=1
+          continue
+        }
 
         if [[ -z "$hosts" ]]; then
           # Full resource URLs let gcloud resolve the project and global/regional scope.
@@ -48,7 +54,10 @@ fetch_forwarding_rules() {
             continue
           fi
 
-          hosts="$(jq -c --arg key "$url_map" '.[$key] // empty' <<<"$hosts_cache")"
+          hosts="$(jq -c --arg key "$url_map" '.[$key] // empty' <<<"$hosts_cache")" || {
+            ret=1
+            continue
+          }
 
           if [[ -z "$hosts" ]]; then
             map="$(gcloud compute url-maps describe "$url_map" \
@@ -69,7 +78,10 @@ fetch_forwarding_rules() {
             --arg target "$target" \
             --arg url_map "$url_map" \
             --argjson hosts "$hosts" \
-            '.[$target] = $hosts | .[$url_map] = $hosts' <<<"$hosts_cache")"
+            '.[$target] = $hosts | .[$url_map] = $hosts' <<<"$hosts_cache")" || {
+            ret=1
+            continue
+          }
         fi
       fi
 
@@ -108,7 +120,7 @@ fetch_gcp_nat_ips() {
     gcloud compute routers list \
       --project="$project" \
       --format="value(name,region)"
-  )"
+  )" || return 1
 
   if [[ -n "$routers" ]]; then
     while IFS=$'\t' read -r router_name router_region; do
@@ -156,7 +168,7 @@ fetch_gcp_nat_ips() {
               mode: $mode,
               usage: $usage
             }]
-          }'
+          }' || ret=1
 
       done <<<"$mappings"
     done <<<"$routers"
@@ -208,8 +220,8 @@ fetch_gcp_compute_ips() {
 
 sync_gcp() {
   for project in "${GCP_PROJECTS[@]}"; do
-    fetch_gcp_nat_ips "$project"
-    fetch_forwarding_rules "$project"
-    fetch_gcp_compute_ips "$project"
+    fetch_gcp_nat_ips "$project" || return 1
+    fetch_forwarding_rules "$project" || return 1
+    fetch_gcp_compute_ips "$project" || return 1
   done
 }

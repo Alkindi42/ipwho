@@ -15,7 +15,8 @@ usage() {
     '  ipwho IP' \
     '  ipwho --help' \
     '' \
-    'sync generates a JSON inventory on stdout for the specified GCP projects.' \
+    'sync writes a local JSON cache for the specified GCP projects.' \
+    'Cache: ~/.cache/ipwho/cache.json, or XDG_CACHE_HOME/ipwho/cache.json when set.' \
     'IP lookup is not implemented yet.'
 }
 

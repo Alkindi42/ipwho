@@ -123,7 +123,7 @@ done
 
 scenario='success'
 GCP_PROJECTS=(test-project another-project)
-output="$(sync)"
+output="$(generate_inventory)"
 jq empty <<<"$output"
 jq -e '
   (.generated_at | type == "string") and
@@ -132,11 +132,11 @@ jq -e '
   ([.resources["203.0.113.10"][].type] | unique == ["cloud_nat", "compute_instance", "forwarding_rule"]) and
   ([.resources["203.0.113.10"][].project] | unique == ["another-project", "test-project"])
 ' <<<"$output" >/dev/null
-printf 'PASS: sync aggregates Cloud NAT, forwarding rules and VMs across projects\n'
+printf 'PASS: inventory aggregates Cloud NAT, forwarding rules and VMs across projects\n'
 
 scenario='failure'
 GCP_PROJECTS=(test-project)
 status=0
-output="$(sync 2>/dev/null)" || status=$?
+output="$(generate_inventory 2>/dev/null)" || status=$?
 [[ "$status" -eq 1 ]]
-printf 'PASS: sync propagates Compute API failures\n'
+printf 'PASS: inventory generation propagates Compute API failures\n'
