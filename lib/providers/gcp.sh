@@ -165,9 +165,51 @@ fetch_gcp_nat_ips() {
   return "$ret"
 }
 
+fetch_gcp_compute_ips() {
+  local project="$1"
+  local instances
+
+  instances="$(
+    gcloud compute instances list \
+      --project="$project" \
+      --format=json
+  )" || return 1
+
+  jq -c --arg project "$project" '
+    .[] as $instance |
+    $instance.networkInterfaces[]? as $interface |
+    (
+      ($interface.accessConfigs[]? | {ip: .natIP, prefix_length: 32}),
+      # externalIpv6 is the first address of a range, not necessarily a single IP.
+      ($interface.ipv6AccessConfigs[]? | {
+        ip: .externalIpv6,
+        prefix_length: .externalIpv6PrefixLength
+      })
+    ) |
+    select(.ip != null and .ip != "") |
+    . as $address |
+    {
+      ($address.ip): [{
+        type: "compute_instance",
+        project: $project,
+        provider: "gcp",
+        location: ($instance.zone | split("/")[-1]),
+        resource: {
+          name: $instance.name,
+          id: $instance.id,
+          interface: $interface.name
+        },
+        status: $instance.status,
+        prefix_length: $address.prefix_length
+      }]
+    }
+  ' <<<"$instances" || return 1
+}
+
 sync_gcp() {
   for project in "${GCP_PROJECTS[@]}"; do
     fetch_gcp_nat_ips "$project"
     fetch_forwarding_rules "$project"
+    fetch_gcp_compute_ips "$project"
   done
 }
