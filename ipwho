@@ -16,11 +16,12 @@ usage() {
     'Usage:' \
     '  ipwho sync --gcp-project PROJECT [--gcp-project PROJECT ...]' \
     '  ipwho IPV4' \
+    '  ipwho HOST' \
     '  ipwho --help' \
     '' \
     'sync writes a local JSON cache for the specified GCP projects.' \
     'Cache: ~/.cache/ipwho/cache.json, or XDG_CACHE_HOME/ipwho/cache.json when set.' \
-    'IPV4 looks up an address in the local cache without contacting cloud providers.'
+    'IPV4 or HOST searches the local cache only; no DNS or cloud requests are made.'
 }
 
 main() {
@@ -82,10 +83,10 @@ main() {
     ;;
   *)
     if [[ $# -ne 1 ]]; then
-      printf 'Error: IPv4 lookup expects a single argument.\n' >&2
+      printf 'Error: lookup expects a single IPv4 address or hostname.\n' >&2
       return 2
     fi
-    lookup_ip "$1"
+    lookup "$1"
     ;;
   esac
 }

@@ -17,12 +17,30 @@ is_ipv4() {
   return 0
 }
 
-lookup_ip() {
-  local ip="$1"
+is_host() {
+  local host="${1%.}" label
+  local -a labels
+
+  [[ ${#host} -le 253 && "$host" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] || return 1
+  # Do not interpret malformed IPv4 addresses as hostnames.
+  [[ ! "$host" =~ ^[0-9.]+$ ]] || return 1
+  IFS=. read -r -a labels <<<"$host"
+  for label in "${labels[@]}"; do
+    [[ ${#label} -le 63 && "$label" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]] || return 1
+  done
+  return 0
+}
+
+lookup() {
+  local query="$1" kind
   local cache_file cache matches output
 
-  if ! is_ipv4 "$ip"; then
-    printf 'Error: lookup accepts only IPv4 addresses in dotted-decimal notation, without leading zeros.\n' >&2
+  if is_ipv4 "$query"; then
+    kind='IPv4'
+  elif is_host "$query"; then
+    kind='Host'
+  else
+    printf 'Error: lookup expects a valid IPv4 address without leading zeros, or an ASCII hostname.\n' >&2
     return 2
   fi
 
@@ -37,20 +55,50 @@ lookup_ip() {
     printf 'Error: invalid or incompatible cache at %s. Run ipwho sync to regenerate it.\n' "$cache_file" >&2
     return 2
   }
-  matches="$(jq -r --arg ip "$ip" '(.resources[$ip] // []) | length' <<<"$cache")" || return 2
-  if [[ "$matches" -eq 0 ]]; then
-    printf 'IP %s is absent from the cache at %s.\n' "$ip" "$cache_file" >&2
+  matches="$(jq -c --arg query "$query" --arg kind "$kind" '
+    . as $cache |
+    (if $kind == "IPv4" then
+      [.resources[$query][]? | {ip: $query, resource: .}]
+    else
+      ($query | ascii_downcase | rtrimstr(".")) as $host |
+      [.resources | to_entries[] |
+        select(.key | contains(":") | not) |
+        .key as $ip | .value[] | . as $resource |
+        [(.hosts // [])[] | . as $rule |
+          (ascii_downcase | rtrimstr(".")) as $pattern |
+          select($pattern != "*" and
+            ($pattern == $host or
+              (($pattern | startswith("*.")) and ($host | endswith($pattern[1:]))))) |
+          $rule
+        ] | unique as $rules |
+        select($rules | length > 0) |
+        {ip: $ip, resource: $resource, matched_rules: $rules}]
+    end) as $matches |
+    select($matches | length > 0) |
+    {generated_at: $cache.generated_at, scope: $cache.scope, matches: $matches}
+  ' <<<"$cache")" || {
+    printf 'Error: invalid resource data in cache at %s. Run ipwho sync to regenerate it.\n' "$cache_file" >&2
+    return 2
+  }
+  if [[ -z "$matches" ]]; then
+    printf '%s %s is absent from the cache at %s.\n' "$kind" "$query" "$cache_file" >&2
     return 1
   fi
 
-  output="$(jq -r --arg ip "$ip" '
-    "IPv4: \($ip)",
+  output="$(jq -r --arg query "$query" --arg kind "$kind" '
+    (if $kind == "IPv4" then "IPv4: \($query)"
+     else "Host: \($query | ascii_downcase | rtrimstr("."))" end),
     "Cache generated at: \(.generated_at)",
     "GCP projects: \(.scope.gcp.projects | join(", "))",
-    (.resources[$ip] | to_entries[] |
+    (.matches | to_entries[] |
       "",
       "Resource \(.key + 1):",
-      (.value | {
+      (.value |
+        (if $kind == "Host" then
+          "  IPv4: \(.ip)",
+          "  Matched rules: \(.matched_rules | join(", "))"
+         else empty end),
+        (.resource | {
         Provider: .provider,
         Type: .type,
         Project: .project,
@@ -74,8 +122,8 @@ lookup_ip() {
                 else null end),
         "Prefix length": .prefix_length
       } | to_entries[] | select(.value != null and .value != "") |
-      "  \(.key): \(.value)"))
-  ' <<<"$cache")" || {
+      "  \(.key): \(.value)")))
+  ' <<<"$matches")" || {
     printf 'Error: invalid resource data in cache at %s. Run ipwho sync to regenerate it.\n' "$cache_file" >&2
     return 2
   }
