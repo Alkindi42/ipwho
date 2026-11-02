@@ -8,21 +8,19 @@ readonly ROOT_DIR
 # shellcheck source=lib/sync.sh
 source "$ROOT_DIR/lib/sync.sh"
 
+# shellcheck source=lib/lookup.sh
+source "$ROOT_DIR/lib/lookup.sh"
+
 usage() {
   printf '%s\n' \
     'Usage:' \
     '  ipwho sync --gcp-project PROJECT [--gcp-project PROJECT ...]' \
-    '  ipwho IP' \
+    '  ipwho IPV4' \
     '  ipwho --help' \
     '' \
     'sync writes a local JSON cache for the specified GCP projects.' \
     'Cache: ~/.cache/ipwho/cache.json, or XDG_CACHE_HOME/ipwho/cache.json when set.' \
-    'IP lookup is not implemented yet.'
-}
-
-lookup_ip() {
-  # TODO: implement me
-  echo "Lookup IP"
+    'IPV4 looks up an address in the local cache without contacting cloud providers.'
 }
 
 main() {
@@ -84,7 +82,7 @@ main() {
     ;;
   *)
     if [[ $# -ne 1 ]]; then
-      printf 'Error: IP lookup expects a single argument.\n' >&2
+      printf 'Error: IPv4 lookup expects a single argument.\n' >&2
       return 2
     fi
     lookup_ip "$1"
