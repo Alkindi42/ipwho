@@ -1,5 +1,103 @@
 #!/usr/bin/env bash
 
+fetch_forwarding_rules() {
+  local ret=0
+  local project="$1"
+  local hosts_cache='{}'
+  local forwarding_rules rules rule target proxy_type url_map map hosts
+
+  forwarding_rules="$(
+    gcloud compute forwarding-rules list \
+      --project="$project" \
+      --filter="loadBalancingScheme~^EXTERNAL" \
+      --format=json
+  )" || return 1
+
+  rules="$(jq -c '
+    .[] |
+    select(.loadBalancingScheme == "EXTERNAL" or .loadBalancingScheme == "EXTERNAL_MANAGED") |
+    select(.IPAddress != null and .IPAddress != "")
+  ' <<<"$forwarding_rules")" || return 1
+
+  if [[ -n "$rules" ]]; then
+    while IFS= read -r rule; do
+      target="$(jq -r '.target // empty' <<<"$rule")"
+      hosts='[]'
+      proxy_type=''
+
+      case "$target" in
+      */targetHttpProxies/*) proxy_type='target-http-proxies' ;;
+      */targetHttpsProxies/*) proxy_type='target-https-proxies' ;;
+      esac
+
+      if [[ -n "$proxy_type" ]]; then
+        hosts="$(jq -c --arg key "$target" '.[$key] // empty' <<<"$hosts_cache")"
+
+        if [[ -z "$hosts" ]]; then
+          # Full resource URLs let gcloud resolve the project and global/regional scope.
+          url_map="$(gcloud compute "$proxy_type" describe "$target" \
+            --project="$project" \
+            --format="value(urlMap)")" || {
+            ret=1
+            continue
+          }
+
+          if [[ -z "$url_map" ]]; then
+            printf 'No URL map found for proxy %s\n' "$target" >&2
+            ret=1
+            continue
+          fi
+
+          hosts="$(jq -c --arg key "$url_map" '.[$key] // empty' <<<"$hosts_cache")"
+
+          if [[ -z "$hosts" ]]; then
+            map="$(gcloud compute url-maps describe "$url_map" \
+              --project="$project" \
+              --format=json)" || {
+              ret=1
+              continue
+            }
+
+            hosts="$(jq -c '[.hostRules[]? | .hosts[]] | unique' <<<"$map")" || {
+              ret=1
+              continue
+            }
+          fi
+
+          # Reuse hosts when multiple frontends share a proxy or URL map.
+          hosts_cache="$(jq -c \
+            --arg target "$target" \
+            --arg url_map "$url_map" \
+            --argjson hosts "$hosts" \
+            '.[$target] = $hosts | .[$url_map] = $hosts' <<<"$hosts_cache")"
+        fi
+      fi
+
+      jq -c \
+        --arg project "$project" \
+        --argjson hosts "$hosts" \
+        '{
+          (.IPAddress): [{
+            type: "forwarding_rule",
+            project: $project,
+            direction: "ingress",
+            provider: "gcp",
+            location: ((.region // "global") | split("/")[-1]),
+            resource: {name: .name},
+            scheme: .loadBalancingScheme,
+            protocol: .IPProtocol,
+            ports: (.ports // []),
+            port_range: (.portRange // null),
+            all_ports: (.allPorts // false),
+            hosts: $hosts
+          }]
+        }' <<<"$rule" || ret=1
+    done <<<"$rules"
+  fi
+
+  return "$ret"
+}
+
 fetch_gcp_nat_ips() {
   local ret=0
   local project="$1"
@@ -70,5 +168,6 @@ fetch_gcp_nat_ips() {
 sync_gcp() {
   for project in "${GCP_PROJECTS[@]}"; do
     fetch_gcp_nat_ips "$project"
+    fetch_forwarding_rules "$project"
   done
 }
