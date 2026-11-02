@@ -8,8 +8,16 @@ readonly ROOT_DIR
 # shellcheck source=lib/sync.sh
 source "$ROOT_DIR/lib/sync.sh"
 
-# shellcheck source=/dev/null
-source "${XDG_CONFIG_HOME:-$HOME/.config}/gcp/projects.bash"
+usage() {
+  printf '%s\n' \
+    'Usage:' \
+    '  ipwho sync --gcp-project PROJECT [--gcp-project PROJECT ...]' \
+    '  ipwho IP' \
+    '  ipwho --help' \
+    '' \
+    'sync generates a JSON inventory on stdout for the specified GCP projects.' \
+    'IP lookup is not implemented yet.'
+}
 
 lookup_ip() {
   # TODO: implement me
@@ -17,11 +25,67 @@ lookup_ip() {
 }
 
 main() {
-  case "$1" in
+  local -a GCP_PROJECTS=()
+  local project duplicate
+
+  case "${1:-}" in
   sync)
+    shift
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --gcp-project)
+        if [[ $# -lt 2 || -z "${2:-}" || "${2:-}" == -* || "${2:-}" == *[[:space:]]* ]]; then
+          printf 'Error: --gcp-project requires a non-empty project ID without whitespace.\n' >&2
+          return 2
+        fi
+
+        duplicate=0
+        if [[ ${#GCP_PROJECTS[@]} -gt 0 ]]; then
+          for project in "${GCP_PROJECTS[@]}"; do
+            if [[ "$project" == "$2" ]]; then
+              duplicate=1
+              break
+            fi
+          done
+        fi
+        if [[ "$duplicate" -eq 0 ]]; then
+          GCP_PROJECTS+=("$2")
+        fi
+        shift 2
+        ;;
+      -h | --help)
+        usage
+        return 0
+        ;;
+      *)
+        printf 'Error: unknown sync argument: %s. See ipwho --help.\n' "$1" >&2
+        return 2
+        ;;
+      esac
+    done
+
+    if [[ ${#GCP_PROJECTS[@]} -eq 0 ]]; then
+      printf 'Error: sync requires at least one --gcp-project PROJECT.\n' >&2
+      return 2
+    fi
     sync
     ;;
+  -h | --help)
+    usage
+    ;;
+  '')
+    usage >&2
+    return 2
+    ;;
+  -*)
+    printf 'Error: unknown option: %s. See ipwho --help.\n' "$1" >&2
+    return 2
+    ;;
   *)
+    if [[ $# -ne 1 ]]; then
+      printf 'Error: IP lookup expects a single argument.\n' >&2
+      return 2
+    fi
     lookup_ip "$1"
     ;;
   esac
