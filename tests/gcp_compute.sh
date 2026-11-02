@@ -70,16 +70,16 @@ gcloud() {
     *) printf 'Unexpected scenario: %s\n' "$scenario" >&2; return 1 ;;
     esac
     ;;
-  "compute routers list --project=test-project --format=value(name,region)" | \
-    "compute routers list --project=another-project --format=value(name,region)")
-    printf 'router\teurope-west1\n'
+  "compute routers list --project=test-project --format=json" | \
+    "compute routers list --project=another-project --format=json")
+    printf '[{"name":"router","region":"regions/europe-west1","nats":[{"name":"nat"}]}]\n'
     ;;
   "compute routers get-nat-ip-info router --region=europe-west1 --project=test-project --format=json" | \
     "compute routers get-nat-ip-info router --region=europe-west1 --project=another-project --format=json")
     printf '{"result":[{"natName":"nat","natIpInfoMappings":[{"natIp":"203.0.113.10","mode":"AUTO_ONLY","usage":"IN_USE"}]}]}\n'
     ;;
-  "compute forwarding-rules list --project=test-project --filter=loadBalancingScheme~^EXTERNAL --format=json" | \
-    "compute forwarding-rules list --project=another-project --filter=loadBalancingScheme~^EXTERNAL --format=json")
+  "compute forwarding-rules list --project=test-project --format=json" | \
+    "compute forwarding-rules list --project=another-project --format=json")
     printf '[{"name":"public-lb","IPAddress":"203.0.113.10","loadBalancingScheme":"EXTERNAL","IPProtocol":"TCP","allPorts":true}]\n'
     ;;
   *) printf 'Unexpected gcloud call: %s\n' "$*" >&2; return 1 ;;

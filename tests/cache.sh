@@ -32,17 +32,22 @@ gcloud() {
 
   case "$1 $2 $3" in
   'compute routers list')
-    [[ "$cache_scenario" == empty ]] && return 0
+    if [[ "$cache_scenario" == empty ]]; then printf '[]\n'; return 0; fi
     if [[ "$request_project" == first-project && "$cache_scenario" == routers-failure ]]; then
       printf 'Mock router listing failure\n' >&2
       return 1
     fi
-    printf 'router-one\teurope-west1\n'
     if [[ "$cache_scenario" == nat-failure ]]; then
-      printf 'router-two\teurope-west1\n'
+      printf '[{"name":"router-one","region":"regions/europe-west1","nats":[{"name":"nat"}]},{"name":"router-two","region":"regions/europe-west1","nats":[{"name":"nat"}]}]\n'
+    else
+      printf '[{"name":"router-without-nat","region":"regions/europe-west1"},{"name":"router-one","region":"regions/europe-west1","nats":[{"name":"nat"}]}]\n'
     fi
     ;;
   'compute routers get-nat-ip-info')
+    if [[ "$4" == router-without-nat ]]; then
+      printf 'Nat name not found.\n' >&2
+      return 1
+    fi
     if [[ "$request_project" == first-project ]]; then
       case "$cache_scenario" in
       nat-failure)

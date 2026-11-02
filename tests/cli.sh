@@ -26,7 +26,7 @@ printf '%s\n' \
 gcloud() {
   printf '%s\n' "$*" >>"$IPWHO_TEST_CALLS"
   case "$1 $2 $3" in
-  'compute routers list') return 0 ;;
+  'compute routers list') printf '[]\n' ;;
   'compute forwarding-rules list') printf '[]\n' ;;
   'compute instances list')
     if [[ "${IPWHO_TEST_FAIL_COMPUTE:-0}" -eq 1 ]]; then

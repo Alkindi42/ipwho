@@ -9,7 +9,6 @@ fetch_forwarding_rules() {
   forwarding_rules="$(
     gcloud compute forwarding-rules list \
       --project="$project" \
-      --filter="loadBalancingScheme~^EXTERNAL" \
       --format=json
   )" || return 1
 
@@ -119,8 +118,14 @@ fetch_gcp_nat_ips() {
   routers="$(
     gcloud compute routers list \
       --project="$project" \
-      --format="value(name,region)"
+      --format=json
   )" || return 1
+
+  routers="$(jq -r '
+    .[] |
+    select((.nats // []) | length > 0) |
+    [.name, (.region | split("/")[-1])] | @tsv
+  ' <<<"$routers")" || return 1
 
   if [[ -n "$routers" ]]; then
     while IFS=$'\t' read -r router_name router_region; do
@@ -130,6 +135,8 @@ fetch_gcp_nat_ips() {
         --region="$router_region" \
         --project="$project" \
         --format=json)" || {
+        printf 'Error: could not collect NAT IPs for project %s, router %s (%s).\n' \
+          "$project" "$router_name" "$router_region" >&2
         ret=1
         continue
       }
