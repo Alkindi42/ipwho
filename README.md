@@ -21,7 +21,7 @@ datacenters and server IDs. Host searches use cached provider metadata, not DNS.
 
 ## Quick start
 
-Requires **Bash 3.2+** and **jq**. Synchronization also requires **gcloud**,
+Requires **Bash 3.2+** and **jq**. GCP synchronization also requires **gcloud**,
 authenticated with permission to read the relevant Compute resources.
 For OVH sync, see the optional [Python SDK setup](docs/ovh.md).
 
@@ -78,6 +78,7 @@ pyright
 ```
 
 The OVH Python adapter uses strict Pyright checking against Python 3.15.
+GitHub Actions runs these checks on Linux and macOS without cloud credentials.
 
 ## License
 
