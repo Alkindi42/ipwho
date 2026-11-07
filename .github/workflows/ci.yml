@@ -60,6 +60,7 @@ jobs:
           for file in ipwho lib/*.sh lib/providers/*.sh examples/*.sh tests/*.sh; do
             "$TEST_BASH" -n "$file"
           done
+          shellcheck --version
           shellcheck ipwho lib/*.sh lib/providers/*.sh examples/*.sh tests/*.sh
           ruff check --select E,F,I,UP --target-version py315 lib/providers/ovh_api.py
           ruff format --check lib/providers/ovh_api.py

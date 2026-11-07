@@ -26,6 +26,15 @@ gcloud() {
 }
 export -f gcloud
 
+# Cache-replacement mock; exported only for the snapshot checks below.
+jq() {
+  command jq "$@" || return $?
+  if [[ "${IPWHO_TEST_REPLACE_CACHE:-0}" -eq 1 && "$1" == -cse ]]; then
+    cp "$IPWHO_TEST_REPLACEMENT" "$IPWHO_TEST_CACHE.next"
+    mv "$IPWHO_TEST_CACHE.next" "$IPWHO_TEST_CACHE"
+  fi
+}
+
 run() {
   local expected="$1"
   local status=0
@@ -155,16 +164,16 @@ for invalid in empty malformed array multiple version timestamp scope resources;
   malformed) printf '{broken\n' >"$IPWHO_TEST_CACHE" ;;
   array) printf '[]\n' >"$IPWHO_TEST_CACHE" ;;
   multiple) printf '%s\n%s\n' "$fixture" "$fixture" >"$IPWHO_TEST_CACHE" ;;
-  version) jq '.version = 2' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
-  timestamp) jq '.generated_at = null' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
-  scope) jq '.scope.gcp.projects = []' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
-  resources) jq '.resources["203.0.113.10"] = ["not an object"]' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
+  version) command jq '.version = 2' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
+  timestamp) command jq '.generated_at = null' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
+  scope) command jq '.scope.gcp.projects = []' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
+  resources) command jq '.resources["203.0.113.10"] = ["not an object"]' <<<"$fixture" >"$IPWHO_TEST_CACHE" ;;
   esac
   run_cli 2 203.0.113.10
   [[ ! -s "$lookup_test_dir/stdout" ]]
   grep -q 'ipwho sync' "$lookup_test_dir/stderr"
 done
-jq '.resources["203.0.113.10"][1].hosts = 42' <<<"$fixture" >"$IPWHO_TEST_CACHE"
+command jq '.resources["203.0.113.10"][1].hosts = 42' <<<"$fixture" >"$IPWHO_TEST_CACHE"
 run_cli 2 203.0.113.10
 [[ ! -s "$lookup_test_dir/stdout" ]]
 run_cli 2 api.example.com
@@ -172,15 +181,8 @@ run_cli 2 api.example.com
 printf 'PASS: invalid caches and malformed display data return 2 without partial output\n'
 
 printf '%s\n' "$fixture" >"$IPWHO_TEST_CACHE"
-jq '.resources = {} | .generated_at = "2026-01-01T00:00:00Z"' <<<"$fixture" >"$IPWHO_TEST_REPLACEMENT"
-# Replace the on-disk snapshot after loading it, before lookup renders its data.
-jq() {
-  command jq "$@" || return $?
-  if [[ "${IPWHO_TEST_REPLACE_CACHE:-0}" -eq 1 && "$1" == -cse ]]; then
-    cp "$IPWHO_TEST_REPLACEMENT" "$IPWHO_TEST_CACHE.next"
-    mv "$IPWHO_TEST_CACHE.next" "$IPWHO_TEST_CACHE"
-  fi
-}
+command jq '.resources = {} | .generated_at = "2026-01-01T00:00:00Z"' <<<"$fixture" >"$IPWHO_TEST_REPLACEMENT"
+# Only these checks export the mock to CLI subprocesses.
 export -f jq
 for query in 203.0.113.10 api.example.com; do
   printf '%s\n' "$fixture" >"$IPWHO_TEST_CACHE"
