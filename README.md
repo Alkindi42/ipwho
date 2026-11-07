@@ -74,7 +74,10 @@ Python 3 is needed to run the OVH adapter tests.
 ```bash
 for test in tests/*.sh; do bash "$test"; done
 shellcheck ipwho lib/*.sh lib/providers/*.sh examples/*.sh tests/*.sh
+pyright
 ```
+
+The OVH Python adapter uses strict Pyright checking and targets Python 3.10+.
 
 ## License
 
