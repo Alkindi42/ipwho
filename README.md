@@ -77,7 +77,7 @@ shellcheck ipwho lib/*.sh lib/providers/*.sh examples/*.sh tests/*.sh
 pyright
 ```
 
-The OVH Python adapter uses strict Pyright checking and targets Python 3.10+.
+The OVH Python adapter uses strict Pyright checking against Python 3.15.
 
 ## License
 
