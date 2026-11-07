@@ -11,19 +11,32 @@ source "$LIB_DIR/cache.sh"
 # shellcheck source=lib/providers/gcp.sh
 source "$LIB_DIR/providers/gcp.sh"
 
+# shellcheck source=lib/providers/ovh.sh
+source "$LIB_DIR/providers/ovh.sh"
+
 generate_inventory() {
-  local generated_at projects
+  local generated_at
+  local projects='[]'
 
   generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" || return 1
-  projects="$(jq -cn --args '$ARGS.positional' -- "${GCP_PROJECTS[@]}")" || return 1
+  if [[ ${#GCP_PROJECTS[@]} -gt 0 ]]; then
+    projects="$(jq -cn --args '$ARGS.positional' -- "${GCP_PROJECTS[@]}")" || return 1
+  fi
 
-  sync_gcp | jq -s \
+  {
+    if [[ ${#GCP_PROJECTS[@]} -gt 0 ]]; then sync_gcp || return 1; fi
+    if [[ "${SYNC_OVH:-0}" -eq 1 ]]; then fetch_ovh_servers || return 1; fi
+  } | jq -s \
     --arg generated_at "$generated_at" \
-    --argjson projects "$projects" '
+    --argjson projects "$projects" \
+    --argjson ovh "${SYNC_OVH:-0}" '
     {
       version: 1,
       generated_at: $generated_at,
-      scope: {gcp: {projects: $projects}},
+      scope: (
+        (if ($projects | length) > 0 then {gcp: {projects: $projects}} else {} end) +
+        (if $ovh == 1 then {ovh: {dedicated_servers: true}} else {} end)
+      ),
       resources: (
         reduce .[] as $entry ({};
           reduce ($entry | to_entries[]) as $item (.;

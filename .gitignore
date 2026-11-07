@@ -51,3 +51,9 @@ Sessionx.vim
 tags
 # Persistent undo
 [._]*.un~
+
+# Optional OVH SDK and local credentials
+ovh.conf
+.ovh.conf
+.venv/
+__pycache__/

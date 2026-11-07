@@ -9,19 +9,21 @@ and hosts without contacting your cloud provider.
 ## Features
 
 - **GCP inventory** — Cloud NAT, external forwarding rules and Compute Engine.
+- **OVH inventory** — dedicated bare-metal servers and their primary public IPv4.
 - **Offline search** — find resources by IPv4 address or configured hostname,
   including wildcard host rules.
 - **Readable results** — see projects, locations, resource names and relevant
   details such as load balancer hosts, ports and VM status.
 - **Reliable caching** — a failed sync preserves the last successful inventory.
 
-GCP is currently the only supported provider. Host searches use cached routing
-rules, not DNS resolution.
+OVH inventory includes Manager hostnames, commercial names, regions, zones,
+datacenters and server IDs. Host searches use cached provider metadata, not DNS.
 
 ## Quick start
 
 Requires **Bash 3.2+** and **jq**. Synchronization also requires **gcloud**,
 authenticated with permission to read the relevant Compute resources.
+For OVH sync, see the optional [Python SDK setup](docs/ovh.md).
 
 Clone this repository, then run from its directory:
 
@@ -29,12 +31,15 @@ Clone this repository, then run from its directory:
 # Build your local inventory
 ./ipwho sync --gcp-project my-project --gcp-project another-project
 
+# Optional: include OVH in the same snapshot
+./ipwho sync --gcp-project my-project --ovh
+
 # Search it offline
 ./ipwho 203.0.113.10
 ./ipwho api.example.com
 ```
 
-Each sync replaces the inventory with the selected projects. Lookups use the
+Each sync replaces the inventory with the selected providers and projects. Lookups use the
 last successful snapshot and display its collection time.
 
 ## Example
@@ -63,7 +68,8 @@ Use `./ipwho --help` for a summary of the available commands.
 
 ## Development
 
-Tests use mocked cloud responses and require no cloud credentials.
+Tests use mocked cloud responses and require no cloud credentials or OVH SDK.
+Python 3 is needed to run the OVH adapter tests.
 
 ```bash
 for test in tests/*.sh; do bash "$test"; done

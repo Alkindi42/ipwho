@@ -46,7 +46,7 @@ lookup() {
 
   cache_file="$(cache_file_path)" || return 2
   if [[ ! -f "$cache_file" || ! -r "$cache_file" ]]; then
-    printf 'Error: cache is missing or unreadable at %s. Run ipwho sync with your GCP projects first.\n' "$cache_file" >&2
+    printf 'Error: cache is missing or unreadable at %s. Run ipwho sync with your selected providers first.\n' "$cache_file" >&2
     return 2
   fi
 
@@ -89,7 +89,8 @@ lookup() {
     (if $kind == "IPv4" then "IPv4: \($query)"
      else "Host: \($query | ascii_downcase | rtrimstr("."))" end),
     "Cache generated at: \(.generated_at)",
-    "GCP projects: \(.scope.gcp.projects | join(", "))",
+    (if .scope.gcp != null then "GCP projects: \(.scope.gcp.projects | join(", "))" else empty end),
+    (if .scope.ovh != null then "OVH: dedicated servers" else empty end),
     (.matches | to_entries[] |
       "",
       "Resource \(.key + 1):",
@@ -103,7 +104,12 @@ lookup() {
         Type: .type,
         Project: .project,
         Name: .resource.name,
+        "Service name": .resource.service_name,
+        "Commercial name": .commercial_name,
         Location: .location,
+        Region: .region,
+        Zone: .zone,
+        Datacenter: .datacenter,
         Direction: .direction,
         ID: .resource.id,
         Router: .resource.router,

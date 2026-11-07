@@ -14,18 +14,19 @@ source "$ROOT_DIR/lib/lookup.sh"
 usage() {
   printf '%s\n' \
     'Usage:' \
-    '  ipwho sync --gcp-project PROJECT [--gcp-project PROJECT ...]' \
+    '  ipwho sync [--gcp-project PROJECT ...] [--ovh]' \
     '  ipwho IPV4' \
     '  ipwho HOST' \
     '  ipwho --help' \
     '' \
-    'sync writes a local JSON cache for the specified GCP projects.' \
+    'sync writes a local JSON cache for the selected GCP projects and/or OVH dedicated servers.' \
     'Cache: ~/.cache/ipwho/cache.json, or XDG_CACHE_HOME/ipwho/cache.json when set.' \
     'IPV4 or HOST searches the local cache only; no DNS or cloud requests are made.'
 }
 
 main() {
   local -a GCP_PROJECTS=()
+  local SYNC_OVH=0
   local project duplicate
 
   case "${1:-}" in
@@ -53,6 +54,10 @@ main() {
         fi
         shift 2
         ;;
+      --ovh)
+        SYNC_OVH=1
+        shift
+        ;;
       -h | --help)
         usage
         return 0
@@ -64,8 +69,8 @@ main() {
       esac
     done
 
-    if [[ ${#GCP_PROJECTS[@]} -eq 0 ]]; then
-      printf 'Error: sync requires at least one --gcp-project PROJECT.\n' >&2
+    if [[ ${#GCP_PROJECTS[@]} -eq 0 && "$SYNC_OVH" -eq 0 ]]; then
+      printf 'Error: sync requires --gcp-project PROJECT and/or --ovh.\n' >&2
       return 2
     fi
     sync
