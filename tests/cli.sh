@@ -113,6 +113,10 @@ cp "$cache_file" "$tmp_dir/previous-cache"
 export IPWHO_TEST_FAIL_COMPUTE=1
 run_cli 1 sync --gcp-project first-project --gcp-project second-project
 [[ ! -s "$tmp_dir/stdout" && -s "$tmp_dir/stderr" && $(wc -l <"$IPWHO_TEST_CALLS") -eq 3 ]]
+if grep -Eq 'Sync completed|GCP \[2/2\]' "$tmp_dir/stderr"; then
+  printf 'FAIL: sync continued or reported success after failure\n' >&2
+  exit 1
+fi
 cmp -s "$cache_file" "$tmp_dir/previous-cache"
 unset IPWHO_TEST_FAIL_COMPUTE
 printf 'PASS: collection failures remain nonzero and stop before the next project\n'

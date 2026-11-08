@@ -106,10 +106,17 @@ esac
                               env=settings, text=True, capture_output=True)
         assert proc.returncode == expected, (args, case, proc.returncode, proc.stderr)
         assert 'never-print-this' not in proc.stderr
-        if args[0] == 'sync': assert not proc.stdout
+        if args[0] == 'sync':
+            assert not proc.stdout
+            if expected != 0: assert 'Sync completed' not in proc.stderr
         return proc
 
-    run(['sync', '--ovh', '--ovh'])
+    proc = run(['sync', '--ovh', '--ovh'])
+    assert len(proc.stderr.splitlines()) == 3
+    assert '[ipwho] Sync started' in proc.stderr
+    assert '[ipwho] OVH: collecting dedicated servers' in proc.stderr
+    assert 'Sync completed in ' in proc.stderr
+    assert '203.0.113.10' not in proc.stderr and 'SERVER.EXAMPLE.COM.' not in proc.stderr
     data = json.loads(cache.read_text())
     assert data['version'] == 1
     assert data['scope'] == {'ovh': {'dedicated_servers': True}}
@@ -143,7 +150,10 @@ esac
     run(['service-b.example.com'], expected=1)
     print('PASS: OVH host lookup remains offline and does not invent missing hostnames')
 
-    run(['sync', '--gcp-project', 'test-project', '--ovh'])
+    proc = run(['sync', '--gcp-project', 'test-project', '--ovh'])
+    assert len(proc.stderr.splitlines()) == 4
+    assert '[ipwho] GCP [1/1]: test-project' in proc.stderr
+    assert proc.stderr.index('GCP [1/1]') < proc.stderr.index('OVH: collecting')
     data = json.loads(cache.read_text())
     assert data['scope'] == {'gcp':{'projects':['test-project']}, 'ovh':{'dedicated_servers':True}}
     assert len(data['resources']['203.0.113.10']) == 2

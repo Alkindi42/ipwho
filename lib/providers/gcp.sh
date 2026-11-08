@@ -226,7 +226,12 @@ fetch_gcp_compute_ips() {
 }
 
 sync_gcp() {
+  local project
+  local current=0 total="${#GCP_PROJECTS[@]}"
+
   for project in "${GCP_PROJECTS[@]}"; do
+    current=$((current + 1))
+    printf '[ipwho] GCP [%s/%s]: %s\n' "$current" "$total" "$project" >&2
     fetch_gcp_nat_ips "$project" || return 1
     fetch_forwarding_rules "$project" || return 1
     fetch_gcp_compute_ips "$project" || return 1

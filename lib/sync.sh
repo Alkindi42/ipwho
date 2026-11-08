@@ -25,7 +25,10 @@ generate_inventory() {
 
   {
     if [[ ${#GCP_PROJECTS[@]} -gt 0 ]]; then sync_gcp || return 1; fi
-    if [[ "${SYNC_OVH:-0}" -eq 1 ]]; then fetch_ovh_servers || return 1; fi
+    if [[ "${SYNC_OVH:-0}" -eq 1 ]]; then
+      printf '[ipwho] OVH: collecting dedicated servers\n' >&2
+      fetch_ovh_servers || return 1
+    fi
   } | jq -s \
     --arg generated_at "$generated_at" \
     --argjson projects "$projects" \
@@ -51,7 +54,9 @@ generate_inventory() {
 sync() {
   local cache_file cache_dir tmp_file saved_traps
   local status=0
+  local started_at="$SECONDS"
 
+  printf '[ipwho] Sync started\n' >&2
   cache_file="$(cache_file_path)" || return 1
   cache_dir="${cache_file%/*}"
   (umask 077; mkdir -p -- "$cache_dir") || return 1
@@ -72,13 +77,15 @@ sync() {
   elif [[ -d "$cache_file" ]] || ! mv -f -- "$tmp_file" "$cache_file"; then
     printf 'Error: could not replace cache at %s.\n' "$cache_file" >&2
     status=1
-  else
-    printf 'Cache written to %s\n' "$cache_file" >&2
   fi
 
   rm -f -- "$tmp_file" || status=1
   trap - INT TERM
   # Restore only trap definitions captured from this shell, never configuration input.
   eval "$saved_traps"
+  if [[ "$status" -eq 0 ]]; then
+    printf '[ipwho] Sync completed in %ss; cache: %s\n' \
+      "$((SECONDS - started_at))" "$cache_file" >&2
+  fi
   return "$status"
 }

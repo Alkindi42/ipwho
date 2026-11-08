@@ -113,6 +113,10 @@ expect_preserved_cache() {
   # The conditional intentionally disables errexit: errors must propagate explicitly.
   sync >"$cache_test_dir/stdout" 2>"$cache_test_dir/stderr" || status=$?
   [[ "$status" -eq 1 && ! -s "$cache_test_dir/stdout" && -s "$cache_test_dir/stderr" ]]
+  if grep -q 'Sync completed' "$cache_test_dir/stderr"; then
+    printf 'FAIL: failed sync reported success\n' >&2
+    exit 1
+  fi
   cmp -s "$test_cache_file" "$cache_test_dir/previous-cache"
   assert_no_temporary_files
 }
@@ -127,6 +131,11 @@ original_umask="$(umask)"
   [[ "$(umask)" == "$permissive_umask" && "$(trap -p EXIT INT TERM)" == "$original_traps" ]]
 ) >"$cache_test_dir/stdout" 2>"$cache_test_dir/stderr"
 [[ ! -s "$cache_test_dir/stdout" && -s "$cache_test_dir/stderr" ]]
+[[ $(wc -l <"$cache_test_dir/stderr") -eq 4 ]]
+grep -Fxq '[ipwho] Sync started' "$cache_test_dir/stderr"
+grep -Fxq '[ipwho] GCP [1/2]: first-project' "$cache_test_dir/stderr"
+grep -Fxq '[ipwho] GCP [2/2]: second-project' "$cache_test_dir/stderr"
+grep -Eq '^\[ipwho\] Sync completed in [0-9]+s; cache: ' "$cache_test_dir/stderr"
 [[ "$(umask)" == "$original_umask" ]]
 [[ "$(ls -ld "$test_cache_dir")" == drwx------* ]]
 [[ "$(ls -l "$test_cache_file")" == -rw-------* ]]

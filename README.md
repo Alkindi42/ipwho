@@ -40,7 +40,8 @@ Clone this repository, then run from its directory:
 ```
 
 Each sync replaces the inventory with the selected providers and projects. Lookups use the
-last successful snapshot and display its collection time.
+last successful snapshot and display its collection time. Sync prints brief
+progress messages on stderr, followed by its elapsed time and cache location.
 
 ## Example
 
