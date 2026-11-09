@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/ipwho-horizontal-mono-white.svg">
+    <img src="assets/logo/ipwho-horizontal.svg" alt="ipwho" width="480">
+  </picture>
+</p>
+
 # ipwho
 
 **Find the cloud resource behind a public IP or configured hostname.**
